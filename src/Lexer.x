@@ -51,6 +51,10 @@ tokens :-
 
 <0> ";" {tok Semicolon}
 
+-- Invalid
+
+<0> $digit+ @id {tokInvalid}
+
 -- Identifiers
 
 <0> @id {tokId}
@@ -128,6 +132,9 @@ tokConstant inp@(_, _, str, _) len =
         { rtToken = Constant $ read $ BS.unpack $ BS.take len str
         , rtRange = mkRange inp len
         }
+
+tokInvalid :: AlexAction RangedToken
+tokInvalid ((AlexPn _ line column),_,_,_) _len = alexError $ "lexical error at line " ++ (show line) ++ ", column " ++ (show column)
 
 scanMany :: ByteString -> Either String [RangedToken]
 scanMany input = runAlex input go
