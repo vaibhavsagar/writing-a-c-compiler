@@ -8,6 +8,7 @@ import System.Exit
 
 import Preprocess (preprocess)
 import Lexer (lexer)
+import Parser (parse)
 
 data Args = Args
     { argsInputFile :: String
@@ -49,7 +50,14 @@ driver args = do
             removeFile preprocessOutputFilePath
             either die (const exitSuccess) lexerOutput
        | argsParse args -> do
-            undefined
+            preprocessOutputFilePath <- preprocess inputFilePath
+            lexerOutput <- lexer preprocessOutputFilePath
+            removeFile preprocessOutputFilePath
+            case lexerOutput of
+                Left errMsg -> die errMsg
+                Right rangedTokens -> do
+                    let parsedOutput = parse rangedTokens
+                    parsedOutput `seq` exitSuccess
        | argsCodegen args -> do
             undefined
        | argsS args -> do
