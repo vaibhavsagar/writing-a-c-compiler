@@ -56,8 +56,8 @@ driver args = do
             case lexerOutput of
                 Left errMsg -> die errMsg
                 Right rangedTokens -> do
-                    let parsedOutput = parse rangedTokens
-                    parsedOutput `seq` exitSuccess
+                    let parserOutput = parse rangedTokens
+                    either die (const exitSuccess) parserOutput
        | argsCodegen args -> do
             undefined
        | argsS args -> do

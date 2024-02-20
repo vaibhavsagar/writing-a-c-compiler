@@ -1,9 +1,26 @@
+{-# LANGUAGE GeneralisedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Parser where
 
+import Control.Applicative (Alternative(..))
+import Control.Monad (MonadPlus(..))
 import Control.Monad.Trans.State.Strict
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import qualified Lexer
+
+newtype ParseResult a = ParseResult { getParseResult :: Either String a } deriving (Functor, Applicative, Monad)
+
+instance Alternative ParseResult where
+    empty = ParseResult $ Left ""
+    (ParseResult r1) <|> (ParseResult r2) = ParseResult $ either (const r2) Right r1
+
+instance MonadPlus ParseResult where
+    mzero = empty
+    mplus = (<|>)
+
+newtype Parser s a = Parser { runParser :: StateT s ParseResult a } deriving (Functor, Applicative, Alternative, Monad)
 
 data Program = Program Function deriving (Eq, Show)
 
@@ -17,61 +34,63 @@ data Identifier = Identifier String deriving (Eq, Show)
 
 data Constant = Constant Int deriving (Eq, Show)
 
-expect :: Lexer.Token -> State [Lexer.RangedToken] ()
+throwError :: String -> Parser s a
+throwError = Parser . StateT . const . ParseResult . Left
+
+expect :: Lexer.Token -> Parser [Lexer.RangedToken] ()
 expect expectedToken = do
-    actualToken <- gets head
+    actualToken <- Parser $ gets head
     if expectedToken == (Lexer.rtToken actualToken)
         then do
-            modify' tail
+            Parser $ modify' tail
             pure ()
-        else do
-            error $ concat
-                [ "Expected: ", show expectedToken, "\n"
-                , "Got: ", show actualToken, "\n"
-                ]
+        else throwError $ concat
+            [ "Expected: ", show expectedToken, "\n"
+            , "Got: ", show actualToken, "\n"
+            ]
 
-confirmEOF :: State [Lexer.RangedToken] ()
+confirmEOF :: Parser [Lexer.RangedToken] ()
 confirmEOF = do
-    actualToken <- gets head
-    remaining <- gets tail
+    actualToken <- Parser $ gets head
+    remaining <- Parser $ gets tail
     if (Lexer.EOF == Lexer.rtToken actualToken && null remaining)
         then pure ()
-        else error $ concat
+        else throwError $ concat
             [ "Expected EOF\n"
             , "Got: ", show actualToken, "\n"
             ]
 
-parseIdentifier :: State [Lexer.RangedToken] Identifier
+parseIdentifier :: Parser [Lexer.RangedToken] Identifier
 parseIdentifier = do
-    actualToken <- gets head
+    actualToken <- Parser $ gets head
     case Lexer.rtToken actualToken of
         Lexer.Identifier nameBS -> do
-            modify' tail
+            Parser $ modify' tail
             pure $ Identifier $ BS.unpack nameBS
-        _ -> error $ concat
+        _ -> throwError $ concat
                 [ "Expected identifier\n"
                 , "Got: ", show actualToken, "\n"
                 ]
 
-parseConstant :: State [Lexer.RangedToken] Constant
+parseConstant :: Parser [Lexer.RangedToken] Constant
 parseConstant = do
-    actualToken <- gets head
+    actualToken <- Parser $ gets head
     case Lexer.rtToken actualToken of
         Lexer.Constant intValue -> do
-            modify' tail
+            Parser $ modify' tail
             pure $ Constant intValue
-        _ -> error $ concat
+        _ -> throwError $ concat
                 [ "Expected identifier\n"
                 , "Got: ", show actualToken, "\n"
                 ]
 
-parseProgram :: State [Lexer.RangedToken] Program
+parseProgram :: Parser [Lexer.RangedToken] Program
 parseProgram = do
     fn <- parseFunction
     confirmEOF
     pure $ Program fn
 
-parseFunction :: State [Lexer.RangedToken] Function
+parseFunction :: Parser [Lexer.RangedToken] Function
 parseFunction = do
     expect Lexer.KwInt
     name <- parseIdentifier
@@ -83,15 +102,15 @@ parseFunction = do
     expect Lexer.RBracket
     pure $ Function name body
 
-parseStatement :: State [Lexer.RangedToken] Statement
+parseStatement :: Parser [Lexer.RangedToken] Statement
 parseStatement = do
     expect Lexer.KwReturn
     value <- parseExpression
     expect Lexer.Semicolon
     pure $ Return value
 
-parseExpression :: State [Lexer.RangedToken] Expression
+parseExpression :: Parser [Lexer.RangedToken] Expression
 parseExpression = Expression <$> parseConstant
 
-parse :: [Lexer.RangedToken] -> Program
-parse = evalState parseProgram
+parse :: [Lexer.RangedToken] -> Either String Program
+parse = getParseResult . evalStateT (runParser parseProgram)
