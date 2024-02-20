@@ -2,6 +2,7 @@
 
 module Main where
 
+import Data.List
 import Options.Applicative
 import System.Directory (removeFile)
 import System.Exit
@@ -57,7 +58,7 @@ driver args = do
                 Left errMsg -> die errMsg
                 Right rangedTokens -> do
                     let parserOutput = parse rangedTokens
-                    either die (const exitSuccess) parserOutput
+                    either (die . intercalate "\n") (const exitSuccess) parserOutput
        | argsCodegen args -> do
             undefined
        | argsS args -> do

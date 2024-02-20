@@ -4,23 +4,14 @@
 module Parser where
 
 import Control.Applicative (Alternative(..))
-import Control.Monad (MonadPlus(..))
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
+import Control.Monad.Trans.Except
 import qualified Data.ByteString.Lazy.Char8 as BS
 
 import qualified Lexer
 
-newtype ParseResult a = ParseResult { getParseResult :: Either String a } deriving (Functor, Applicative, Monad)
-
-instance Alternative ParseResult where
-    empty = ParseResult $ Left ""
-    (ParseResult r1) <|> (ParseResult r2) = ParseResult $ either (const r2) Right r1
-
-instance MonadPlus ParseResult where
-    mzero = empty
-    mplus = (<|>)
-
-newtype Parser s a = Parser { runParser :: StateT s ParseResult a } deriving (Functor, Applicative, Alternative, Monad)
+newtype Parser s a = Parser { runParser :: ExceptT [String] (State s) a } deriving (Functor, Applicative, Alternative, Monad)
 
 data Program = Program Function deriving (Eq, Show)
 
@@ -35,14 +26,14 @@ data Identifier = Identifier String deriving (Eq, Show)
 data Constant = Constant Int deriving (Eq, Show)
 
 throwError :: String -> Parser s a
-throwError = Parser . StateT . const . ParseResult . Left
+throwError = Parser . throwE . (:[])
 
 expect :: Lexer.Token -> Parser [Lexer.RangedToken] ()
 expect expectedToken = do
-    actualToken <- Parser $ gets head
+    actualToken <- Parser $ lift $ gets head
     if expectedToken == (Lexer.rtToken actualToken)
         then do
-            Parser $ modify' tail
+            Parser $ lift $ modify' tail
             pure ()
         else throwError $ concat
             [ "Expected: ", show expectedToken, "\n"
@@ -51,8 +42,8 @@ expect expectedToken = do
 
 confirmEOF :: Parser [Lexer.RangedToken] ()
 confirmEOF = do
-    actualToken <- Parser $ gets head
-    remaining <- Parser $ gets tail
+    actualToken <- Parser $ lift $ gets head
+    remaining <- Parser $ lift $ gets tail
     if (Lexer.EOF == Lexer.rtToken actualToken && null remaining)
         then pure ()
         else throwError $ concat
@@ -62,10 +53,10 @@ confirmEOF = do
 
 parseIdentifier :: Parser [Lexer.RangedToken] Identifier
 parseIdentifier = do
-    actualToken <- Parser $ gets head
+    actualToken <- Parser $ lift $ gets head
     case Lexer.rtToken actualToken of
         Lexer.Identifier nameBS -> do
-            Parser $ modify' tail
+            Parser $ lift $ modify' tail
             pure $ Identifier $ BS.unpack nameBS
         _ -> throwError $ concat
                 [ "Expected identifier\n"
@@ -74,10 +65,10 @@ parseIdentifier = do
 
 parseConstant :: Parser [Lexer.RangedToken] Constant
 parseConstant = do
-    actualToken <- Parser $ gets head
+    actualToken <- Parser $ lift $ gets head
     case Lexer.rtToken actualToken of
         Lexer.Constant intValue -> do
-            Parser $ modify' tail
+            Parser $ lift $ modify' tail
             pure $ Constant intValue
         _ -> throwError $ concat
                 [ "Expected identifier\n"
@@ -112,5 +103,5 @@ parseStatement = do
 parseExpression :: Parser [Lexer.RangedToken] Expression
 parseExpression = Expression <$> parseConstant
 
-parse :: [Lexer.RangedToken] -> Either String Program
-parse = getParseResult . evalStateT (runParser parseProgram)
+parse :: [Lexer.RangedToken] -> Either [String] Program
+parse tokens = evalState (runExceptT $ runParser parseProgram) tokens
