@@ -6,7 +6,7 @@ import qualified Parser
 
 data Program = Program Function deriving (Eq, Show)
 data Function = Function { functionName :: Parser.Identifier, instructions :: [Instruction] } deriving (Eq, Show)
-data Instruction = Mov { src :: Operand, dst :: Operand } | Ret deriving (Eq, Show)
+data Instruction = Mov { movSrc :: Operand, movDst :: Operand } | Ret deriving (Eq, Show)
 data Operand = Imm Int | Register deriving (Eq, Show)
 
 codeGenProgram :: Parser.Program -> Program

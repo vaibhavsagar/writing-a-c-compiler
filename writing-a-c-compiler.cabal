@@ -21,6 +21,7 @@ library
   exposed-modules:
     AssembleAndLink
     CodeGen
+    Emission
     Lexer
     Parser
     Preprocess
