@@ -7,6 +7,7 @@ import Options.Applicative
 import System.Directory (removeFile)
 import System.Exit
 
+import qualified CodeGen
 import Preprocess (preprocess)
 import Lexer (lexer)
 import Parser (parse)
@@ -15,7 +16,7 @@ data Args = Args
     { argsInputFile :: String
     , argsLex :: Bool
     , argsParse :: Bool
-    , argsCodegen :: Bool
+    , argsCodeGen :: Bool
     , argsS :: Bool
     } deriving (Eq, Show)
 
@@ -59,8 +60,16 @@ driver args = do
                 Right rangedTokens -> do
                     let parserOutput = parse rangedTokens
                     either (die . intercalate "\n") (const exitSuccess) parserOutput
-       | argsCodegen args -> do
-            undefined
+       | argsCodeGen args -> do
+            preprocessOutputFilePath <- preprocess inputFilePath
+            lexerOutput <- lexer preprocessOutputFilePath
+            removeFile preprocessOutputFilePath
+            case lexerOutput of
+                Left errMsg -> die errMsg
+                Right rangedTokens -> do
+                    let parserOutput = parse rangedTokens
+                    let codeGenOutput = either Left (Right . CodeGen.codeGenProgram) parserOutput
+                    either (die . intercalate "\n") (const exitSuccess) codeGenOutput
        | argsS args -> do
             undefined
        | otherwise -> do

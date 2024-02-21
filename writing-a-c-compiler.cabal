@@ -20,6 +20,7 @@ library
   -- cabal-gild: discover src
   exposed-modules:
     AssembleAndLink
+    CodeGen
     Lexer
     Parser
     Preprocess
