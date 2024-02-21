@@ -8,7 +8,7 @@
   inputs.flake-compat.url = "github:edolstra/flake-compat";
   outputs = {nixpkgs, flake-utils, cabal-gild-src, ...}:
     flake-utils.lib.eachDefaultSystem (system: let
-      pkgs = import nixpkgs { inherit system; };
+      pkgs = nixpkgs.legacyPackages.${system};
       drv = pkgs.haskellPackages.callCabal2nix "writing-a-c-compiler" ./. {};
       cabal-gild = pkgs.haskell.lib.dontCheck (pkgs.haskellPackages.callCabal2nix "cabal-gild" cabal-gild-src {});
       shell = pkgs.mkShell {
