@@ -51,6 +51,12 @@ tokens :-
 
 <0> ";" {tok Semicolon}
 
+-- Operators
+
+<0> "--" {tok Decrement}
+<0> "-" {tok Negate}
+<0> "~" {tok Complement}
+
 -- Invalid
 
 <0> $digit+ @id {tokInvalid}
@@ -96,6 +102,10 @@ data Token
     | KwInt
     | KwVoid
     | KwReturn
+    -- Operators
+    | Complement
+    | Negate
+    | Decrement
     -- Parentheses
     | LPar
     | RPar

@@ -19,9 +19,17 @@ data Function = Function { functionName :: Identifier, functionBody :: Statement
 
 data Statement = Return Expression deriving (Eq, Show)
 
-data Expression = Expression Constant deriving (Eq, Show)
+data Expression
+    = ConstantExpression Constant
+    | UnaryExpression UnaryOperator Expression
+    deriving (Eq, Show)
 
-data Identifier = Identifier String deriving (Eq, Show)
+data UnaryOperator
+    = Complement
+    | Negate
+    deriving (Eq, Show)
+
+newtype Identifier = Identifier String deriving (Eq, Show)
 
 data Constant = Constant Int deriving (Eq, Show)
 
@@ -101,7 +109,11 @@ parseStatement = do
     pure $ Return value
 
 parseExpression :: Parser [Lexer.RangedToken] Expression
-parseExpression = Expression <$> parseConstant
+parseExpression
+    =   (expect Lexer.Complement *> (UnaryExpression Complement <$> parseExpression))
+    <|> (expect Lexer.Negate *> (UnaryExpression Negate <$> parseExpression))
+    <|> (expect Lexer.LPar *> parseExpression <* expect Lexer.RPar)
+    <|> (ConstantExpression <$> parseConstant)
 
 parse :: [Lexer.RangedToken] -> Either [String] Program
 parse tokens = evalState (runExceptT $ runParser parseProgram) tokens

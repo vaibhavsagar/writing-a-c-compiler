@@ -11,6 +11,7 @@ import qualified CodeGen
 import Preprocess (preprocess)
 import Lexer (lexer)
 import Parser (parse)
+import Tacky (tacky)
 import Emission (writeAssembly)
 import AssembleAndLink (assembleAndLink)
 
@@ -18,6 +19,7 @@ data Args = Args
     { argsInputFile :: String
     , argsLex :: Bool
     , argsParse :: Bool
+    , argsTacky :: Bool
     , argsCodeGen :: Bool
     , argsS :: Bool
     } deriving (Eq, Show)
@@ -31,6 +33,10 @@ parserArgs = Args
         )
     <*> switch
         ( long "parse"
+        <> help "stop before TACKY generation"
+        )
+    <*> switch
+        ( long "tacky"
         <> help "stop before assembly generation"
         )
     <*> switch
@@ -62,6 +68,16 @@ driver args = do
                 Right rangedTokens -> do
                     let parserOutput = parse rangedTokens
                     either (die . intercalate "\n") (const exitSuccess) parserOutput
+       | argsTacky args -> do
+            preprocessOutputFilePath <- preprocess inputFilePath
+            lexerOutput <- lexer preprocessOutputFilePath
+            removeFile preprocessOutputFilePath
+            case lexerOutput of
+                Left errMsg -> die errMsg
+                Right rangedTokens -> do
+                    let parserOutput = parse rangedTokens
+                    let tackyOutput = either Left (Right . tacky) parserOutput
+                    either (die . intercalate "\n") (const exitSuccess) tackyOutput
        | argsCodeGen args -> do
             preprocessOutputFilePath <- preprocess inputFilePath
             lexerOutput <- lexer preprocessOutputFilePath
@@ -70,7 +86,8 @@ driver args = do
                 Left errMsg -> die errMsg
                 Right rangedTokens -> do
                     let parserOutput = parse rangedTokens
-                    let codeGenOutput = either Left (Right . CodeGen.codeGenProgram) parserOutput
+                    let tackyOutput = either Left (Right . tacky) parserOutput
+                    let codeGenOutput = either Left (Right . CodeGen.codegen) tackyOutput
                     either (die . intercalate "\n") (const exitSuccess) codeGenOutput
        | argsS args -> do
             preprocessOutputFilePath <- preprocess inputFilePath
@@ -80,7 +97,8 @@ driver args = do
                 Left errMsg -> die errMsg
                 Right rangedTokens -> do
                     let parserOutput = parse rangedTokens
-                    let codeGenOutput = either Left (Right . CodeGen.codeGenProgram) parserOutput
+                    let tackyOutput = either Left (Right . tacky) parserOutput
+                    let codeGenOutput = either Left (Right . CodeGen.codegen) tackyOutput
                     case codeGenOutput of
                         Left errMsgs -> die $ intercalate "\n" errMsgs
                         Right program -> do
@@ -94,7 +112,8 @@ driver args = do
                 Left errMsg -> die errMsg
                 Right rangedTokens -> do
                     let parserOutput = parse rangedTokens
-                    let codeGenOutput = either Left (Right . CodeGen.codeGenProgram) parserOutput
+                    let tackyOutput = either Left (Right . tacky) parserOutput
+                    let codeGenOutput = either Left (Right . CodeGen.codegen) tackyOutput
                     case codeGenOutput of
                         Left errMsgs -> die $ intercalate "\n" errMsgs
                         Right program -> do

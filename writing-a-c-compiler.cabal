@@ -25,6 +25,7 @@ library
     Lexer
     Parser
     Preprocess
+    Tacky
 
   -- other-modules:
   -- other-extensions:
@@ -32,6 +33,7 @@ library
     array,
     base >=4.7 && <5,
     bytestring,
+    containers,
     filepath,
     process,
     transformers,
